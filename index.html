@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="id">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal SMAN 1 WATES</title>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      height: 100%;
+    }
+    html {
+      height: 100%;
+    }
+    .app-container {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .btn-primary {
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .card {
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    .submission-item {
+      border-left: 4px solid #10b981;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body>
+  <div id="app" class="app-container"></div>
+  <script>
+    // Default configuration
+    const defaultConfig = {
+      school_name: "SMAN 1 WATES",
+      welcome_text: "Selamat Datang di Portal SMANEWA",
+      primary_color: "#1e40af",
+      secondary_color: "#ffffff",
+      text_color: "#1f2937",
+      accent_color: "#10b981",
+      background_color: "#f3f4f6",
+      font_family: "Segoe UI",
+      font_size: 16
+    };
+
+    // State management
+    let currentView = 'login';
+    let currentRole = null;
+    let allTasks = [];
+    let isLoading = false;
+    let userProfile = null;
+
+    // Database siswa terdaftar
+    const registeredStudents = [
+      // Kelas XI IPA 1
+      { name: "Aditya Putra", class: "XI IPA 1", absen: "1" },
+      { name: "Aulia Rahma", class: "XI IPA 1", absen: "2" },
+      { name: "Bagas Pratama", class: "XI IPA 1", absen: "3" },
+      { name: "Bella Anggraini", class: "XI IPA 1", absen: "4" },
+      { name: "Dimas Kurniawan", class: "XI IPA 1", absen: "5" },
+      { name: "Fadhila Nisa", class: "XI IPA 1", absen: "6" },
+      { name: "Farhan Rizky", class: "XI IPA 1", absen: "7" },
+      { name: "Hana Lestari", class: "XI IPA 1", absen: "8" },
+      { name: "Naufal Firmansyah", class: "XI IPA 1", absen: "9" },
+      { name: "Zahra Putri", class: "XI IPA 1", absen: "10" },
+      // Kelas XI IPA 2
+      { name: "Aldi Saputra", class: "XI IPA 2", absen: "1" },
+      { name: "Anisa Maulida", class: "XI IPA 2", absen: "2" },
+      { name: "Bintang Prakoso", class: "XI IPA 2", absen: "3" },
+      { name: "Citra Pelangi", class: "XI IPA 2", absen: "4" },
+      { name: "Dwi Putra", class: "XI IPA 2", absen: "5" },
+      { name: "Ega Septiani", class: "XI IPA 2", absen: "6" },
+      { name: "Galang Pradana", class: "XI IPA 2", absen: "7" },
+      { name: "Indah Safitri", class: "XI IPA 2", absen: "8" },
+      { name: "Rahmat Hidayat", class: "XI IPA 2", absen: "9" },
+      { name: "Sherly Oktavia", class: "XI IPA 2", absen: "10" }
+    ];
+
+    // Data SDK Handler
+    const dataHandler = {
+      onDataChanged(data) {
+        allTasks = data;
+        
+        if (currentView === 'teacher-dashboard' || currentView === 'student-dashboard') {
+          renderDashboard();
+        } else if (currentView === 'login') {
+          renderLoginPage();
+        }
+      }
+    };
+
+    // Initialize SDKs
+    async function initApp() {
+      const dataResult = await window.dataSdk.init(dataHandler);
+      if (!dataResult.isOk) {
+        console.error("Failed to initialize data SDK");
+      }
+
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: async (config) => {
+            applyConfig(config);
+          },
+          mapToCapabilities: (config) => ({
+            recolorables: [
+              {
+                get: () => config.primary_color || defaultConfig.primary_color,
+                set: (value) => {
+                  config.primary_color = value;
+                  window.elementSdk.setConfig({ primary_color: value });
+                }
+              },
+              {
+                get: () => config.secondary_color || defaultConfig.secondary_color,
+                set: (value) => {
+                  config.secondary_color = value;
+                  window.elementSdk.setConfig({ secondary_color: value });
+                }
+              },
+              {
+                get: () => config.text_color || defaultConfig.text_color,
+                set: (value) => {
+                  config.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: () => config.accent_color || defaultConfig.accent_color,
+                set: (value) => {
+                  config.accent_color = value;
+                  window.elementSdk.setConfig({ accent_color: value });
+                }
+              },
+              {
+                get: () => config.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  config.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => config.font_family || defaultConfig.font_family,
+              set: (value) => {
+                config.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => config.font_size || defaultConfig.font_size,
+              set: (value) => {
+                config.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (config) => new Map([
+            ["school_name", config.school_name || defaultConfig.school_name],
+            ["welcome_text", config.welcome_text || defaultConfig.welcome_text]
+          ])
+        });
+      }
+
+      renderLoginPage();
+    }
+
+    function applyConfig(config) {
+      const primaryColor = config.primary_color || defaultConfig.primary_color;
+      const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const accentColor = config.accent_color || defaultConfig.accent_color;
+      const backgroundColor = config.background_color || defaultConfig.background_color;
+      const fontFamily = config.font_family || defaultConfig.font_family;
+      const fontSize = config.font_size || defaultConfig.font_size;
+
+      document.body.style.backgroundColor = backgroundColor;
+      document.body.style.color = textColor;
+      document.body.style.fontFamily = `${fontFamily}, sans-serif`;
+      document.body.style.fontSize = `${fontSize}px`;
+
+      // Update school name and welcome text
+      const schoolNameEl = document.getElementById('school-name');
+      const welcomeTextEl = document.getElementById('welcome-text');
+      if (schoolNameEl) schoolNameEl.textContent = config.school_name || defaultConfig.school_name;
+      if (welcomeTextEl) welcomeTextEl.textContent = config.welcome_text || defaultConfig.welcome_text;
+
+      // Update all buttons
+      const primaryButtons = document.querySelectorAll('.btn-primary');
+      primaryButtons.forEach(btn => {
+        btn.style.backgroundColor = primaryColor;
+        btn.style.color = secondaryColor;
+      });
+
+      // Update cards
+      const cards = document.querySelectorAll('.card');
+      cards.forEach(card => {
+        card.style.backgroundColor = secondaryColor;
+        card.style.color = textColor;
+      });
+
+      // Update accent elements
+      const accentElements = document.querySelectorAll('.accent-element');
+      accentElements.forEach(el => {
+        el.style.color = accentColor;
+      });
+
+      // Update header
+      const header = document.querySelector('.header-bar');
+      if (header) {
+        header.style.backgroundColor = primaryColor;
+        header.style.color = secondaryColor;
+      }
+
+
+
+      // Update font sizes proportionally
+      const titles = document.querySelectorAll('.title-text');
+      titles.forEach(el => el.style.fontSize = `${fontSize * 2}px`);
+
+      const subtitles = document.querySelectorAll('.subtitle-text');
+      subtitles.forEach(el => el.style.fontSize = `${fontSize * 1.5}px`);
+
+      const bodyTexts = document.querySelectorAll('.body-text');
+      bodyTexts.forEach(el => el.style.fontSize = `${fontSize}px`);
+
+      const smallTexts = document.querySelectorAll('.small-text');
+      smallTexts.forEach(el => el.style.fontSize = `${fontSize * 0.875}px`);
+    }
+
+
+
+    function renderLoginPage() {
+      currentView = 'login';
+      const config = window.elementSdk?.config || defaultConfig;
+      
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background-color: ${config.background_color || defaultConfig.background_color};">
+          <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); max-width: 480px; width: 100%;">
+            <div style="text-align: center; margin-bottom: 32px;">
+              <div style="width: 80px; height: 80px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 40px;">
+                🏫
+              </div>
+              <h1 id="school-name" class="title-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 2}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${config.school_name || defaultConfig.school_name}</h1>
+              <p id="welcome-text" class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${config.welcome_text || defaultConfig.welcome_text}</p>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+              <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Pilih Peran Anda</label>
+              <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 16px 0; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Silakan pilih apakah Anda guru atau murid</p>
+            </div>
+
+            <button onclick="loginAs('teacher')" class="btn-primary" style="width: 100%; padding: 16px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${(config.font_size || defaultConfig.font_size) * 1.125}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer; margin-bottom: 12px;">
+              👨‍🏫 Masuk sebagai Guru
+            </button>
+
+            <button onclick="loginAs('student')" class="btn-primary" style="width: 100%; padding: 16px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${(config.font_size || defaultConfig.font_size) * 1.125}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+              👨‍🎓 Masuk sebagai Murid
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function loginAs(role) {
+      currentRole = role;
+      if (role === 'teacher') {
+        currentView = 'teacher-selection';
+        renderTeacherSelection();
+      } else {
+        currentView = 'student-profile';
+        renderProfileForm();
+      }
+    }
+
+    function renderTeacherSelection() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+
+      const teachers = [
+        { name: "Bapak Andi Prasetya, S.Pd.", subject: "Matematika", password: "matematika123" },
+        { name: "Ibu Rina Kartikasari, M.Pd.", subject: "Bahasa Indonesia", password: "indonesia123" },
+        { name: "Bapak Dwi Haryanto, S.Pd.", subject: "IPA", password: "BISAHEBAT" },
+        { name: "Ibu Ayu Lestari, S.Pd.", subject: "IPS", password: "SIKAT89" },
+        { name: "Bapak Rendra Firmansyah, S.Kom.", subject: "Informatika / TIK", password: "PYTHONULAR" },
+        { name: "Ibu Melani Putri, S.Pd.", subject: "Bahasa Inggris", password: "ILOVEYOU" },
+        { name: "Bapak Samuel Wijaya, S.Pd.", subject: "Pendidikan Jasmani", password: "LOMPATKATAK" },
+        { name: "Ibu Sri Wahyuni, S.Pd.", subject: "PPKN", password: "UUD1945" },
+        { name: "Bapak Bagas Permana, S.Pd.", subject: "Seni Budaya", password: "SULINGJASMANI" },
+        { name: "Ibu Dela Maharani, S.Pd.", subject: "Biologi", password: "SINARMATAHARI" }
+      ];
+
+      const teacherCards = teachers.map(teacher => `
+        <div onclick="selectTeacher('${teacher.name}', '${teacher.subject}', '${teacher.password}')" class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); cursor: pointer; transition: all 0.3s ease;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 56px; height: 56px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0;">
+              👨‍🏫
+            </div>
+            <div style="flex: 1;">
+              <h3 class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 4px 0; font-weight: 600; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${teacher.name}</h3>
+              <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📚 ${teacher.subject}</p>
+            </div>
+            <div style="color: ${config.primary_color || defaultConfig.primary_color}; font-size: 24px;">→</div>
+          </div>
+        </div>
+      `).join('');
+
+      app.innerHTML = `
+        <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background-color: ${config.background_color || defaultConfig.background_color};">
+          <div style="width: 100%; max-width: 800px;">
+            <div style="text-align: center; margin-bottom: 32px;">
+              <div style="width: 80px; height: 80px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 40px;">
+                👨‍🏫
+              </div>
+              <h2 class="title-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 2}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Pilih Guru</h2>
+              <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 32px 0; opacity: 0.7; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Silakan pilih identitas guru Anda</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px;">
+              ${teacherCards}
+            </div>
+
+            <div style="text-align: center;">
+              <button onclick="logout()" style="padding: 12px 32px; background-color: transparent; color: ${config.text_color || defaultConfig.text_color}; border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                Kembali
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function selectTeacher(name, subject, password) {
+      currentView = 'teacher-password';
+      renderTeacherPasswordForm(name, subject, password);
+    }
+
+    function renderTeacherPasswordForm(name, subject, correctPassword) {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+
+      app.innerHTML = `
+        <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background-color: ${config.background_color || defaultConfig.background_color};">
+          <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); max-width: 480px; width: 100%;">
+            <div style="text-align: center; margin-bottom: 32px;">
+              <div style="width: 80px; height: 80px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 40px;">
+                🔐
+              </div>
+              <h2 class="title-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 2}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Masukkan Kata Sandi</h2>
+              <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 4px 0; font-weight: 600; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${name}</p>
+              <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📚 ${subject}</p>
+            </div>
+
+            <form onsubmit="verifyTeacherPassword(event, '${name}', '${subject}', '${correctPassword}')">
+              <div style="margin-bottom: 20px;">
+                <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Kata Sandi</label>
+                <input type="password" id="teacher-password" required style="width: 100%; padding: 14px; border: 2px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Masukkan kata sandi">
+                <p id="error-message" class="small-text" style="color: #ef4444; margin: 8px 0 0 0; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; display: none;"></p>
+              </div>
+
+              <div style="display: flex; gap: 12px;">
+                <button type="button" onclick="backToTeacherSelection()" style="flex: 1; padding: 14px; background-color: transparent; color: ${config.text_color || defaultConfig.text_color}; border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                  Kembali
+                </button>
+                <button type="submit" class="btn-primary" style="flex: 2; padding: 14px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                  Masuk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function verifyTeacherPassword(event, name, subject, correctPassword) {
+      event.preventDefault();
+      const password = document.getElementById('teacher-password').value;
+      const errorMessage = document.getElementById('error-message');
+
+      if (password === correctPassword) {
+        userProfile = { name, subject };
+        currentView = 'teacher-dashboard';
+        renderDashboard();
+      } else {
+        errorMessage.textContent = '❌ Kata sandi salah. Silakan coba lagi.';
+        errorMessage.style.display = 'block';
+        document.getElementById('teacher-password').value = '';
+        document.getElementById('teacher-password').focus();
+      }
+    }
+
+    function backToTeacherSelection() {
+      currentView = 'teacher-selection';
+      renderTeacherSelection();
+    }
+
+    function renderProfileForm() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+
+      if (currentRole === 'teacher') {
+        app.innerHTML = `
+          <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background-color: ${config.background_color || defaultConfig.background_color};">
+            <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); max-width: 480px; width: 100%;">
+              <div style="text-align: center; margin-bottom: 32px;">
+                <div style="width: 80px; height: 80px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 40px;">
+                  👨‍🏫
+                </div>
+                <h2 class="title-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 2}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Profil Guru</h2>
+                <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; opacity: 0.7; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Masukkan nama Anda untuk melanjutkan</p>
+              </div>
+
+              <form onsubmit="submitTeacherProfile(event)">
+                <div style="margin-bottom: 20px;">
+                  <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Nama Guru</label>
+                  <input type="text" id="teacher-name" required style="width: 100%; padding: 14px; border: 2px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: Budi Santoso, S.Pd">
+                </div>
+
+                <div style="display: flex; gap: 12px;">
+                  <button type="button" onclick="logout()" style="flex: 1; padding: 14px; background-color: transparent; color: ${config.text_color || defaultConfig.text_color}; border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                    Kembali
+                  </button>
+                  <button type="submit" class="btn-primary" style="flex: 2; padding: 14px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                    Lanjutkan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      } else {
+        app.innerHTML = `
+          <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background-color: ${config.background_color || defaultConfig.background_color};">
+            <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); max-width: 480px; width: 100%;">
+              <div style="text-align: center; margin-bottom: 32px;">
+                <div style="width: 80px; height: 80px; background-color: ${config.primary_color || defaultConfig.primary_color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 40px;">
+                  👨‍🎓
+                </div>
+                <h2 class="title-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 2}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Profil Murid</h2>
+                <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; opacity: 0.7; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Lengkapi data diri Anda</p>
+              </div>
+
+              <form onsubmit="submitStudentProfile(event)">
+                <div style="margin-bottom: 16px;">
+                  <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Nama Lengkap</label>
+                  <input type="text" id="student-name" required style="width: 100%; padding: 14px; border: 2px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: Ahmad Rizki">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                  <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Kelas</label>
+                  <input type="text" id="student-class" required style="width: 100%; padding: 14px; border: 2px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: X-8, XI-9, XII-5">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                  <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Nomor Absen</label>
+                  <input type="number" id="student-absen" required min="1" style="width: 100%; padding: 14px; border: 2px solid rgba(0, 0, 0, 0.1); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: 15">
+                </div>
+
+                <div id="student-error-message" class="small-text" style="color: #ef4444; margin: 0 0 16px 0; padding: 12px; background-color: rgba(239, 68, 68, 0.1); border-radius: 6px; border-left: 4px solid #ef4444; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; display: none;"></div>
+
+                <div style="display: flex; gap: 12px;">
+                  <button type="button" onclick="logout()" style="flex: 1; padding: 14px; background-color: transparent; color: ${config.text_color || defaultConfig.text_color}; border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                    Kembali
+                  </button>
+                  <button type="submit" class="btn-primary" style="flex: 2; padding: 14px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                    Lanjutkan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function submitTeacherProfile(event) {
+      event.preventDefault();
+      const name = document.getElementById('teacher-name').value;
+      userProfile = { name };
+      currentView = 'teacher-dashboard';
+      renderDashboard();
+    }
+
+    function submitStudentProfile(event) {
+      event.preventDefault();
+      const name = document.getElementById('student-name').value.trim();
+      const studentClass = document.getElementById('student-class').value.trim().toUpperCase();
+      const absen = document.getElementById('student-absen').value.trim();
+
+      // Validasi data siswa dengan database
+      const isValidStudent = registeredStudents.some(student => 
+        student.name.toLowerCase() === name.toLowerCase() &&
+        student.class.toUpperCase() === studentClass &&
+        student.absen === absen
+      );
+
+      if (!isValidStudent) {
+        const errorDiv = document.getElementById('student-error-message');
+        errorDiv.textContent = '❌ Data tidak sesuai. Pastikan Nama, Kelas, dan Nomor Absen Anda benar.';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      userProfile = { name, class: studentClass, absen };
+      currentView = 'student-dashboard';
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+      
+      if (currentRole === 'teacher') {
+        renderTeacherDashboard(app, config);
+      } else {
+        renderStudentDashboard(app, config);
+      }
+    }
+
+    function renderTeacherDashboard(app, config) {
+      // Filter tasks for this teacher only
+      const teacherTasks = allTasks.filter(task => task.teacherName === userProfile.name);
+      
+      const tasksHtml = teacherTasks.map(task => {
+        const submissions = task.submissions ? JSON.parse(task.submissions) : [];
+        return `
+          <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 16px;">
+            <h3 class="subtitle-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 8px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${task.title}</h3>
+            <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 12px 0; opacity: 0.8; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${task.description}</p>
+            <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📚 ${task.subject}</span>
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">🎓 Kelas ${task.targetClass}</span>
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📅 ${new Date(task.deadline).toLocaleDateString('id-ID')}</span>
+              <span class="small-text accent-element" style="color: ${config.accent_color || defaultConfig.accent_color}; font-weight: 600; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">✓ ${submissions.length} Pengumpulan</span>
+            </div>
+
+            ${submissions.length > 0 ? `
+              <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.1);">
+                <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; font-weight: 600; margin: 0 0 8px 0; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Pengumpulan:</p>
+                ${submissions.map(sub => `
+                  <div class="submission-item small-text" style="padding: 8px 12px; background-color: rgba(16, 185, 129, 0.1); border-radius: 6px; margin-bottom: 8px; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color};">
+                    <div style="margin-bottom: 4px;"><strong>${sub.studentName}</strong> • Kelas ${sub.studentClass} • Absen ${sub.studentAbsen}</div>
+                    <div style="margin-bottom: 4px;">${sub.answer}</div>
+                    <div style="opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.75}px; margin-top: 4px;">📅 ${new Date(sub.submittedAt).toLocaleString('id-ID')}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <div style="min-height: 100%; background-color: ${config.background_color || defaultConfig.background_color};">
+          <div class="header-bar" style="background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+            <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+              <div>
+                <h2 class="subtitle-text" style="margin: 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Dashboard Guru</h2>
+                <p class="small-text" style="margin: 4px 0 0 0; opacity: 0.9; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">👨‍🏫 ${userProfile.name} • 📚 ${userProfile.subject}</p>
+              </div>
+              <button onclick="logout()" style="padding: 10px 20px; background-color: rgba(255, 255, 255, 0.2); color: ${config.secondary_color || defaultConfig.secondary_color}; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; cursor: pointer;">Keluar</button>
+            </div>
+          </div>
+
+          <div style="max-width: 1200px; margin: 0 auto; padding: 32px 24px;">
+            <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 32px;">
+              <h3 class="subtitle-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 20px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">➕ Buat Tugas Baru</h3>
+              
+              <form id="create-task-form" onsubmit="createTask(event)">
+                <div style="margin-bottom: 16px;">
+                  <label class="body-text" style="display: block; margin-bottom: 6px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Judul Tugas</label>
+                  <input type="text" id="task-title" required style="width: 100%; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: Tugas Matematika Bab 5">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                  <label class="body-text" style="display: block; margin-bottom: 6px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Deskripsi</label>
+                  <textarea id="task-description" required rows="3" style="width: 100%; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; resize: vertical; box-sizing: border-box;" placeholder="Jelaskan tugas yang harus dikerjakan..."></textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                  <div>
+                    <label class="body-text" style="display: block; margin-bottom: 6px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Mata Pelajaran</label>
+                    <input type="text" id="task-subject" required readonly style="width: 100%; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box; background-color: rgba(0, 0, 0, 0.05);" value="${userProfile.subject}">
+                  </div>
+
+                  <div>
+                    <label class="body-text" style="display: block; margin-bottom: 6px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Deadline</label>
+                    <input type="date" id="task-deadline" required style="width: 100%; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;">
+                  </div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                  <label class="body-text" style="display: block; margin-bottom: 6px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Untuk Kelas</label>
+                  <input type="text" id="task-class" required style="width: 100%; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; box-sizing: border-box;" placeholder="Contoh: X-8, XI-9, XII-5">
+                  <p class="small-text" style="margin: 4px 0 0 0; opacity: 0.6; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color};">Format: [Tingkat]-[Nomor Kelas]</p>
+                </div>
+
+
+
+                <button type="submit" class="btn-primary" id="create-btn" style="width: 100%; padding: 14px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 8px; font-size: ${(config.font_size || defaultConfig.font_size) * 1.125}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                  Buat Tugas
+                </button>
+              </form>
+            </div>
+
+            <h3 class="subtitle-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 20px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📋 Daftar Tugas (${teacherTasks.length})</h3>
+            
+            ${teacherTasks.length === 0 ? `
+              <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 64px; margin-bottom: 16px;">📝</div>
+                <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.6; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Belum ada tugas. Buat tugas pertama Anda!</p>
+              </div>
+            ` : tasksHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStudentDashboard(app, config) {
+      // Filter tasks for student's class only
+      const studentTasks = allTasks.filter(task => task.targetClass === userProfile.class);
+      
+      const tasksHtml = studentTasks.map(task => {
+        const submissions = task.submissions ? JSON.parse(task.submissions) : [];
+        // Check if THIS student has submitted
+        const mySubmission = submissions.find(sub => 
+          sub.studentName === userProfile.name && 
+          sub.studentClass === userProfile.class && 
+          sub.studentAbsen === userProfile.absen
+        );
+        const hasSubmitted = mySubmission !== undefined;
+        
+        // Check if deadline has passed
+        const deadlineDate = new Date(task.deadline);
+        const now = new Date();
+        const isPastDeadline = now > deadlineDate;
+        
+        // Calculate time remaining
+        const timeRemaining = deadlineDate - now;
+        const daysRemaining = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+        const hoursRemaining = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        
+        let deadlineStatus = '';
+        let deadlineColor = '';
+        
+        if (isPastDeadline) {
+          deadlineStatus = '🔒 Sudah Ditutup';
+          deadlineColor = '#ef4444';
+        } else if (daysRemaining === 0 && hoursRemaining < 24) {
+          deadlineStatus = `⏰ ${hoursRemaining} jam lagi`;
+          deadlineColor = '#f59e0b';
+        } else if (daysRemaining <= 2) {
+          deadlineStatus = `⏰ ${daysRemaining} hari lagi`;
+          deadlineColor = '#f59e0b';
+        }
+        
+        return `
+          <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 16px; ${isPastDeadline && !hasSubmitted ? 'opacity: 0.7; border: 2px solid #ef4444;' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+              <h3 class="subtitle-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${task.title}</h3>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${hasSubmitted ? `<span class="small-text accent-element" style="padding: 6px 12px; background-color: rgba(16, 185, 129, 0.15); color: ${config.accent_color || defaultConfig.accent_color}; border-radius: 20px; font-weight: 600; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">✓ Sudah Dikumpulkan</span>` : ''}
+                ${deadlineStatus ? `<span class="small-text" style="padding: 6px 12px; background-color: ${deadlineColor}15; color: ${deadlineColor}; border-radius: 20px; font-weight: 600; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${deadlineStatus}</span>` : ''}
+              </div>
+            </div>
+            
+            <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 12px 0; opacity: 0.8; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">${task.description}</p>
+            
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📚 ${task.subject}</span>
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📅 ${new Date(task.deadline).toLocaleDateString('id-ID')}</span>
+              <span class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">👨‍🏫 ${task.teacherName}</span>
+            </div>
+
+
+
+            ${!hasSubmitted && !isPastDeadline ? `
+              <form onsubmit="submitTask(event, '${task.__backendId}')" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(0, 0, 0, 0.1);">
+                <label class="body-text" style="display: block; margin-bottom: 8px; font-weight: 600; color: ${config.text_color || defaultConfig.text_color}; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Jawaban Anda</label>
+                <textarea name="answer" required rows="3" placeholder="Tulis jawaban Anda di sini..." style="width: 100%; padding: 10px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px; margin-bottom: 12px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; color: ${config.text_color || defaultConfig.text_color}; resize: vertical; box-sizing: border-box;"></textarea>
+                
+
+                
+                <button type="submit" class="btn-primary submit-btn-${task.__backendId}" style="padding: 10px 24px; background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; border: none; border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; font-weight: 600; cursor: pointer;">
+                  Kumpulkan Tugas
+                </button>
+              </form>
+            ` : !hasSubmitted && isPastDeadline ? `
+              <div style="margin-top: 16px; padding: 16px; background-color: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 4px solid #ef4444; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 8px;">      </div>
+                <p class="body-text" style="color: #ef4444; margin: 0; font-weight: 600; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">
+                  Tugas Sudah Ditutup
+                </p>
+                <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 8px 0 0 0; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">
+                  Deadline telah terlewat. Anda tidak dapat mengumpulkan tugas ini.
+                </p>
+              </div>
+            ` : `
+              <div style="margin-top: 16px; padding: 12px; background-color: rgba(16, 185, 129, 0.1); border-radius: 6px; border-left: 4px solid ${config.accent_color || defaultConfig.accent_color};">
+                <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">
+                  <strong>Jawaban Anda:</strong> ${mySubmission.answer}
+                </p>
+                <p class="small-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 8px 0 0 0; opacity: 0.7; font-size: ${(config.font_size || defaultConfig.font_size) * 0.75}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">
+                  Dikumpulkan: ${new Date(mySubmission.submittedAt).toLocaleString('id-ID')}
+                </p>
+              </div>
+            `}
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <div style="min-height: 100%; background-color: ${config.background_color || defaultConfig.background_color};">
+          <div class="header-bar" style="background-color: ${config.primary_color || defaultConfig.primary_color}; color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+            <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+              <div>
+                <h2 class="subtitle-text" style="margin: 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Dashboard Murid</h2>
+                <p class="small-text" style="margin: 4px 0 0 0; opacity: 0.9; font-size: ${(config.font_size || defaultConfig.font_size) * 0.875}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">👨‍🎓 ${userProfile.name} • Kelas ${userProfile.class} • Absen ${userProfile.absen}</p>
+              </div>
+              <button onclick="logout()" style="padding: 10px 20px; background-color: rgba(255, 255, 255, 0.2); color: ${config.secondary_color || defaultConfig.secondary_color}; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 6px; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif; cursor: pointer;">Keluar</button>
+            </div>
+          </div>
+
+          <div style="max-width: 1200px; margin: 0 auto; padding: 32px 24px;">
+            <h3 class="subtitle-text" style="color: ${config.text_color || defaultConfig.text_color}; margin: 0 0 20px 0; font-size: ${(config.font_size || defaultConfig.font_size) * 1.5}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">📚 Tugas untuk Kelas ${userProfile.class} (${studentTasks.length})</h3>
+            
+            ${studentTasks.length === 0 ? `
+              <div class="card" style="background-color: ${config.secondary_color || defaultConfig.secondary_color}; padding: 48px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 64px; margin-bottom: 16px;">📖</div>
+                <p class="body-text" style="color: ${config.text_color || defaultConfig.text_color}; opacity: 0.6; font-size: ${config.font_size || defaultConfig.font_size}px; font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;">Belum ada tugas yang tersedia.</p>
+              </div>
+            ` : tasksHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    async function createTask(event) {
+      event.preventDefault();
+      
+      if (allTasks.length >= 999) {
+        showNotification("Maksimum 999 tugas tercapai. Hapus beberapa tugas terlebih dahulu.", "error");
+        return;
+      }
+
+      const btn = document.getElementById('create-btn');
+      btn.disabled = true;
+      btn.textContent = '📤 Mengupload...';
+
+      const title = document.getElementById('task-title').value;
+      const description = document.getElementById('task-description').value;
+      const subject = document.getElementById('task-subject').value;
+      const deadline = document.getElementById('task-deadline').value;
+      const targetClass = document.getElementById('task-class').value.toUpperCase();
+
+      const task = {
+        id: Date.now().toString(),
+        title,
+        description,
+        subject,
+        deadline: new Date(deadline).toISOString(),
+        createdBy: "Guru",
+        teacherName: userProfile.name,
+        targetClass: targetClass,
+        createdAt: new Date().toISOString(),
+        submissions: "[]",
+        configType: ""
+      };
+
+      const result = await window.dataSdk.create(task);
+      
+      if (result.isOk) {
+        document.getElementById('create-task-form').reset();
+        showNotification("✅ Tugas berhasil dibuat!", "success");
+      } else {
+        console.error("Failed to create task:", result.error);
+        showNotification("❌ Gagal membuat tugas. Silakan coba lagi.", "error");
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Buat Tugas';
+    }
+
+
+
+    async function submitTask(event, taskId) {
+      event.preventDefault();
+      
+      const form = event.target;
+      const btn = form.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      
+      btn.disabled = true;
+      btn.textContent = '📤 Mengirim...';
+
+      const answer = form.querySelector('textarea[name="answer"]').value.trim();
+      
+      if (!answer) {
+        showNotification("❌ Silakan tulis jawaban Anda terlebih dahulu.", "error");
+        btn.disabled = false;
+        btn.textContent = originalText;
+        return;
+      }
+
+      // Find the task
+      const task = allTasks.find(t => t.__backendId === taskId);
+      if (!task) {
+        showNotification("❌ Tugas tidak ditemukan.", "error");
+        btn.disabled = false;
+        btn.textContent = originalText;
+        return;
+      }
+
+      // Parse existing submissions
+      let submissions = [];
+      try {
+        submissions = task.submissions ? JSON.parse(task.submissions) : [];
+      } catch (e) {
+        console.error("Error parsing submissions:", e);
+        submissions = [];
+      }
+
+      // Check if student already submitted
+      const existingSubmissionIndex = submissions.findIndex(sub => 
+        sub.studentName === userProfile.name && 
+        sub.studentClass === userProfile.class && 
+        sub.studentAbsen === userProfile.absen
+      );
+
+      if (existingSubmissionIndex !== -1) {
+        showNotification("❌ Anda sudah mengumpulkan tugas ini.", "error");
+        btn.disabled = false;
+        btn.textContent = originalText;
+        return;
+      }
+
+      // Create new submission object
+      const newSubmission = {
+        studentName: userProfile.name,
+        studentClass: userProfile.class,
+        studentAbsen: userProfile.absen,
+        answer: answer,
+        submittedAt: new Date().toISOString()
+      };
+
+      // Add new submission to array
+      submissions.push(newSubmission);
+
+      // Update task with new submissions
+      const updatedTask = {
+        ...task,
+        submissions: JSON.stringify(submissions)
+      };
+
+      // Save to backend
+      const result = await window.dataSdk.update(updatedTask);
+      
+      if (result.isOk) {
+        showNotification("✅ Tugas berhasil dikumpulkan!", "success");
+        form.reset();
+      } else {
+        console.error("Failed to update task:", result.error);
+        showNotification("❌ Gagal mengumpulkan tugas. Silakan coba lagi.", "error");
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    function showNotification(message, type) {
+      const config = window.elementSdk?.config || defaultConfig;
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        padding: 16px 24px;
+        background-color: ${type === 'success' ? config.accent_color || defaultConfig.accent_color : '#ef4444'};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        font-size: ${config.font_size || defaultConfig.font_size}px;
+        font-family: ${config.font_family || defaultConfig.font_family}, sans-serif;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+      `;
+      notification.textContent = message;
+      document.body.appendChild(notification);
+
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+      }, 4000);
+    }
+
+    function logout() {
+      currentRole = null;
+      userProfile = null;
+      currentView = 'login';
+      renderLoginPage();
+    }
+
+    // Initialize app
+    initApp();
+  </script>
+  <style>
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+  </style>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a18bbd173a9fd85',t:'MTc2MzY0OTk1My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
